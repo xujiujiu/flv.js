@@ -218,7 +218,7 @@ class IOController {
 
     _selectSeekHandler() {
         let config = this._config;
-
+//默认range
         if (config.seekType === 'range') {
             this._seekHandler = new RangeSeekHandler(this._config.rangeLoadZeroStart);
         } else if (config.seekType === 'param') {
@@ -466,7 +466,7 @@ class IOController {
         }
 
         this._speedSampler.addBytes(chunk.byteLength);
-
+    //根据网速调整储备的缓冲区大小
         // adjust stash buffer size according to network speed dynamically
         let KBps = this._speedSampler.lastSecondKBps;
         if (KBps !== 0) {
@@ -559,7 +559,7 @@ class IOController {
             }
         }
     }
-
+//刷新缓存区
     _flushStashBuffer(dropUnconsumed) {
         if (this._stashUsed > 0) {
             let buffer = this._stashBuffer.slice(0, this._stashUsed);

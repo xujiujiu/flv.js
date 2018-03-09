@@ -218,7 +218,7 @@ class TransmuxingController {
 
         this._enableStatisticsReporter();
     }
-
+//当前帧
     _searchSegmentIndexContains(milliseconds) {
         let segments = this._mediaDataSource.segments;
         let idx = segments.length - 1;
@@ -269,8 +269,8 @@ class TransmuxingController {
             this._remuxer.bindDataSource(this._demuxer
                          .bindDataSource(this._ioctl
             ));
-
             this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
+            //音视频解码
             this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
 
             consumed = this._demuxer.parseChunks(data, byteStart);
@@ -324,7 +324,6 @@ class TransmuxingController {
 
         if (nextSegmentIndex < this._mediaDataSource.segments.length) {
             this._internalAbort();
-            this._remuxer.flushStashedSamples();
             this._loadSegment(nextSegmentIndex);
         } else {
             this._remuxer.flushStashedSamples();
@@ -422,6 +421,12 @@ class TransmuxingController {
         info.totalSegmentCount = this._mediaDataSource.segments.length;
 
         this._emitter.emit(TransmuxingEvents.STATISTICS_INFO, info);
+    }
+    _startRecord() {
+        this._remuxer.startRecord();
+    }
+    _stopRecord(filename) {
+        return this._remuxer.stopRecord(filename);
     }
 
 }

@@ -175,7 +175,6 @@ class Transmuxer {
             this._emitter.emit(TransmuxingEvents.IO_ERROR, type, info);
         });
     }
-
     _onDemuxError(type, info) {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
@@ -234,6 +233,14 @@ class Transmuxer {
             default:
                 break;
         }
+    }
+    _onStartRecord() {
+        this._controller._startRecord();
+    }
+
+    _onStopRecord(fileName) {
+        let recordBuffer = this._controller._stopRecord(fileName);
+        this._emitter.emit('finishRecord', recordBuffer);
     }
 
 }

@@ -151,7 +151,7 @@ class FLVDemuxer {
             hasVideoTrack: hasVideo
         };
     }
-
+//parseChunks调用 FLVDemuxer.probe(chunk);
     bindDataSource(loader) {
         loader.onDataArrival = this.parseChunks.bind(this);
         return this;
@@ -347,7 +347,6 @@ class FLVDemuxer {
 
     _parseScriptData(arrayBuffer, dataOffset, dataSize) {
         let scriptData = AMF.parseScriptData(arrayBuffer, dataOffset, dataSize);
-
         if (scriptData.hasOwnProperty('onMetaData')) {
             if (scriptData.onMetaData == null || typeof scriptData.onMetaData !== 'object') {
                 Log.w(this.TAG, 'Invalid onMetaData structure!');
@@ -827,7 +826,6 @@ class FLVDemuxer {
         let packetType = v.getUint8(0);
         let cts_unsigned = v.getUint32(0, !le) & 0x00FFFFFF;
         let cts = (cts_unsigned << 8) >> 8;  // convert to 24-bit signed int
-
         if (packetType === 0) {  // AVCDecoderConfigurationRecord
             this._parseAVCDecoderConfigurationRecord(arrayBuffer, dataOffset + 4, dataSize - 4);
         } else if (packetType === 1) {  // One or more Nalus
@@ -845,7 +843,32 @@ class FLVDemuxer {
             Log.w(this.TAG, 'Flv: Invalid AVCDecoderConfigurationRecord, lack of data!');
             return;
         }
+        //获取sps、pps数据
+        let metabuffer = new Uint8Array(arrayBuffer, dataOffset, dataSize);
 
+        let vpsLength = metabuffer[27];
+        let vpsArray = new Uint8Array(arrayBuffer, (dataOffset + 28), vpsLength);
+        let spsLength = metabuffer[28 + vpsLength + 4];
+        let spsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5), spsLength);
+        let ppsLength = metabuffer[28 + vpsLength + 5 + spsLength + 4];
+        let ppsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5 + spsLength + 5), ppsLength);
+
+        // let newVps = new Uint8Array(vpsArray.byteLength + 4);
+        // newVps.set(unit8Frame, 0);
+        // newVps.set(vpsArray, 4);
+        // let newSps = new Uint8Array(spsArray.byteLength + 4);
+        // newSps.set(unit8Frame, 0);
+        // newSps.set(spsArray, 4);
+        // let newPps = new Uint8Array(ppsArray.byteLength + 4);
+        // newPps.set(unit8Frame, 0);
+        // newPps.set(ppsArray, 4);
+        // metabuffer = new Uint8Array(newVps.byteLength + newSps.byteLength + newPps.byteLength);
+        // metabuffer.set(newVps, 0);
+        // metabuffer.set(newSps, newVps.byteLength);
+        // metabuffer.set(newPps, newVps.byteLength + newSps.byteLength);
+        if (!this.onInitSegment) {
+            throw new IllegalStateException('FLV: onInitSegment callback must be specificed!');
+        }
         let meta = this._videoMetadata;
         let track = this._videoTrack;
         let le = this._littleEndian;
@@ -994,6 +1017,8 @@ class FLVDemuxer {
         meta.avcc = new Uint8Array(dataSize);
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
+        meta.sps = spsArray;
+        meta.pps = ppsArray;
 
         if (this._isInitialMetadataDispatched()) {
             // flush parsed frames
