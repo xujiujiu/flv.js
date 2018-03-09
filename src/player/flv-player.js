@@ -274,19 +274,12 @@ class FlvPlayer {
             this._transmuxer = null;
         }
     }
-    startRecord(type) {
+    startRecord() {
         this._transmuxer._onStartRecord();
         this._msectl._isRecordVideo = true;
-        // let target =  this._mediaElement.currentTime;
-        // let buffered = this._mediaElement.buffered;
-
-        // Promise.resolve().then(() => {
-        //     this._emitter.emit('startRecording', type);
-        // });
     }
     stopRecord(fileName) {
         this._transmuxer._onStopRecord(fileName);
-        //this._emitter.emit('stopRecord', fileName);
         this._msectl._recordBuffers = {
             video: [],
             audio: []

@@ -12,6 +12,7 @@ flv.js exports all the interfaces through `flvjs` object which exposed in global
 
 Functions:
 - [flvjs.createPlayer()](#flvjscreateplayer)
+- [flvjs.startRecord()](#flvjs.startRecord)
 - [flvjs.isSupported()](#flvjsissupported)
 - [flvjs.getFeatureList()](#flvjsgetfeaturelist)
 
@@ -216,3 +217,27 @@ Provide more verbose explanation for Network and Media errors. They require the 
 | MEDIA_FORMAT_ERROR              | Related to any invalid parameters in the media stream |
 | MEDIA_FORMAT_UNSUPPORTED        | The input MediaDataSource format is not supported by flv.js |
 | MEDIA_CODEC_UNSUPPORTED         | The media stream contains video/audio codec which is not supported |
+
+### flvjs.startRecord
+`flvjs.startRecord` to start video clipping, `flvjs.stopRecord(filename)` to stop video clipping and save clipping video data;
+ 
+```javascript
+startRecord() {
+        this._transmuxer._onStartRecord();
+        this._msectl._isRecordVideo = true;
+        }
+```
+
+```javascript
+_finishRecord(recordMate) {
+        let blob = new Blob([recordMate.recordBuffer], {'type': 'application/octet-stream'});
+        let url = window.URL.createObjectURL(blob);
+        let aLink = window.document.createElement('a');
+        aLink.download = recordMate.filename;
+        aLink.href = url;
+        //创建内置事件并触发
+        let evt = window.document.createEvent('MouseEvents');
+        evt.initMouseEvent('click', true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+        aLink.dispatchEvent(evt);
+    }
+```
