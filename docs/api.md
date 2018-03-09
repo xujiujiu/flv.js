@@ -219,7 +219,7 @@ Provide more verbose explanation for Network and Media errors. They require the 
 | MEDIA_CODEC_UNSUPPORTED         | The media stream contains video/audio codec which is not supported |
 
 ### flvjs.startRecord
-`flvjs.startRecord` to start video clipping, `flvjs.stopRecord(filename)` to stop video clipping and save clipping video data;
+`Player.startRecord` to start video clipping, `Player.stopRecord(filename)` to stop video clipping and save clipping video data;
 
 ```javascript
 startRecord() {
