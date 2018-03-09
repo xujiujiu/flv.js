@@ -220,14 +220,18 @@ Provide more verbose explanation for Network and Media errors. They require the 
 
 ### flvjs.startRecord
 `flvjs.startRecord` to start video clipping, `flvjs.stopRecord(filename)` to stop video clipping and save clipping video data;
- 
+
 ```javascript
 startRecord() {
         this._transmuxer._onStartRecord();
         this._msectl._isRecordVideo = true;
         }
 ```
-
+```javascript
+stopRecord(fileName) {
+        this._transmuxer._onStopRecord(fileName);
+    }
+```
 ```javascript
 _finishRecord(recordMate) {
         let blob = new Blob([recordMate.recordBuffer], {'type': 'application/octet-stream'});

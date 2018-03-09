@@ -280,12 +280,6 @@ class FlvPlayer {
     }
     stopRecord(fileName) {
         this._transmuxer._onStopRecord(fileName);
-        this._msectl._recordBuffers = {
-            video: [],
-            audio: []
-        };
-
-        this._msectl._isRecordVideo = false;
     }
 
     _finishRecord(recordMate) {

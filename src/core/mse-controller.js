@@ -439,25 +439,6 @@ class MSEController {
                 try {
                     this._sourceBuffers[type].appendBuffer(segment.data);
                     this._isBufferFull = false;
-                    // if (this._isRecordVideo) {
-                    //     var len = 0;
-                    //     var addLen = 0;
-                    //     if(this._recordBuffers[type].byteLength !== 0 && this._recordBuffers[type].byteLength){
-                    //         len = this._recordBuffers[type].byteLength;
-                    //     }
-                    //     if(segment.data.byteLength !== 0 && segment.data.byteLength){
-                    //         addLen = segment.data.byteLength;
-                    //     }
-                    //
-                    //     var buf = new Uint8Array(len + addLen);
-                    //     if(this._recordBuffers[type].byteLength !== 0 && this._recordBuffers[type].byteLength){
-                    //         buf.set(this._recordBuffers[type], 0);
-                    //     }
-                    //     buf.set(new Uint8Array(segment.data), len);
-                    //     this._recordBuffers[type] = new Uint8Array(len + addLen);
-                    //     this._recordBuffers[type].set(buf, 0);
-                    //
-                    // }
                     if (type === 'video' && segment.hasOwnProperty('info')) {
                         this._idrList.appendArray(segment.info.syncPoints);
                     }
