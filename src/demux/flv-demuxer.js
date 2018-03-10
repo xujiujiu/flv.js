@@ -852,23 +852,7 @@ class FLVDemuxer {
         let spsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5), spsLength);
         let ppsLength = metabuffer[28 + vpsLength + 5 + spsLength + 4];
         let ppsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5 + spsLength + 5), ppsLength);
-
-        // let newVps = new Uint8Array(vpsArray.byteLength + 4);
-        // newVps.set(unit8Frame, 0);
-        // newVps.set(vpsArray, 4);
-        // let newSps = new Uint8Array(spsArray.byteLength + 4);
-        // newSps.set(unit8Frame, 0);
-        // newSps.set(spsArray, 4);
-        // let newPps = new Uint8Array(ppsArray.byteLength + 4);
-        // newPps.set(unit8Frame, 0);
-        // newPps.set(ppsArray, 4);
-        // metabuffer = new Uint8Array(newVps.byteLength + newSps.byteLength + newPps.byteLength);
-        // metabuffer.set(newVps, 0);
-        // metabuffer.set(newSps, newVps.byteLength);
-        // metabuffer.set(newPps, newVps.byteLength + newSps.byteLength);
-        if (!this.onInitSegment) {
-            throw new IllegalStateException('FLV: onInitSegment callback must be specificed!');
-        }
+        
         let meta = this._videoMetadata;
         let track = this._videoTrack;
         let le = this._littleEndian;
