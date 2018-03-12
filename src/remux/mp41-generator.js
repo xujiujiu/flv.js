@@ -151,7 +151,7 @@ class MP41 {
     }
 
     // emit ftyp & moov
-    static generateInitSegment(meta, mdatDataList, mdatBytes) {
+    static generateInitSegment(meta, trakList, mdatBytes) {
 
         let ftyp = MP41.box(MP41.types.ftyp, MP41.constants.FTYP);
         let free = MP41.box(MP41.types.free);
@@ -183,20 +183,25 @@ class MP41 {
         }
 
         // Write samples into mdatbox
-        for (let i = 0; i < mdatDataList.length; i++) {
-            mdatDataList[i].chunkOffset = ftyp.byteLength + free.byteLength + offset;
-            let units = [], unitLen = mdatDataList[i].units.length;
-            for (let j = 0; j < unitLen; j ++) {
-                units[j] = Object.assign({}, mdatDataList[i].units[j]);
-            }
-            while (units.length) {
-                let unit = units.shift();
-                let data = unit.data;
-                mdatbox.set(data, offset);
-                offset += data.byteLength;
+        for (let i = 0; i < trakList.length; i++) {
+            let trak = trakList[i];
+            trak.duration = trak.refSampleDuration * trak.sequenceNumber;
+            for (let j = 0; j < trak.sequenceNumber; j++) {
+                let sample = trak.samples[j];
+                sample.chunkOffset = ftyp.byteLength + free.byteLength + offset;
+                let units = [], unitLen = sample.units.length;
+                for (let n = 0; n < unitLen; n ++) {
+                    units[n] = Object.assign({}, sample.units[n]);
+                }
+                while (units.length) {
+                    let unit = units.shift();
+                    let data = unit.data;
+                    mdatbox.set(data, offset);
+                    offset += data.byteLength;
+                }
             }
         }
-        let moov = MP41.moov(meta, mdatDataList);
+        let moov = MP41.moov(meta, trakList);
         let result = new Uint8Array(ftyp.byteLength + moov.byteLength + mdatbox.byteLength + free.byteLength);
         result.set(ftyp, 0);
         result.set(free, ftyp.byteLength);
@@ -206,28 +211,21 @@ class MP41 {
     }
 
     // Movie metadata box
-    static moov(meta, mdatDataList) {
-        if (meta instanceof Array) {
-            let timescale = meta[0].timescale;
-            let duration = meta[0].duration;
-            let videoIndex = 0, audioIndex = 1;
-            meta.map(function (item, index) {
-                if (item.type === 'video') {
-                    videoIndex = index;
-                } else {
-                    audioIndex = index;
-                }
-            });
-            let mvhd = MP41.mvhd(timescale, duration, meta[0].id);
-            let trak1 = MP41.trak(meta[videoIndex], mdatDataList);
-            let trak2 = MP41.trak(meta[audioIndex], mdatDataList);
-            return MP41.box(MP41.types.moov, mvhd, trak1, trak2);
-        } else {
-            let mvhd = MP41.mvhd(meta.timescale, meta.duration, meta.id);
-            let trak = MP41.trak(meta, mdatDataList);
-            //let mvex = MP41.mvex(meta);
-            return MP41.box(MP41.types.moov, mvhd, trak);
+    static moov(meta, trakList) {
+        let timescale = meta.timescale;
+        let duration = meta.duration;
+        let trakLen = trakList.length;
+        let mvhd = MP41.mvhd(timescale, duration, trakLen + 1);
+        let trakArrayBuffer = new Uint8Array();
+        for (let i = 0; i < trakLen; i++) {
+            let trak = MP41.trak(trakList[i]);
+            let arrayBuffer = new Uint8Array(trak.byteLength + trakArrayBuffer.byteLength);
+            arrayBuffer.set(trakArrayBuffer, 0);
+            arrayBuffer.set(trak, trakArrayBuffer.byteLength);
+            trakArrayBuffer = new Uint8Array(arrayBuffer.byteLength);
+            trakArrayBuffer.set(arrayBuffer, 0);
         }
+        return MP41.box(MP41.types.moov, mvhd, trakArrayBuffer);
 
     }
 
@@ -264,20 +262,23 @@ class MP41 {
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,  // ----end pre_defined 6 * 4 bytes----
-            0x00, 0x00, 0x00, 0x03   // next_track_ID: 4 bytes  3
+            (trackId >>> 24) & 0xFF,   // next_track_ID: 4 bytes  3
+            (trackId >>> 16) & 0xFF,
+            (trackId >>>  8) & 0xFF,
+            (trackId) & 0xFF
         ]));
     }
 
     // Track box
-    static trak(meta, mdatDataList) {
-        return MP41.box(MP41.types.trak, MP41.tkhd(meta), MP41.edts(meta), MP41.mdia(meta, mdatDataList));
+    static trak(trak) {
+        return MP41.box(MP41.types.trak, MP41.tkhd(trak),/* MP41.edts(trak),*/ MP41.mdia(trak));
     }
 
     // Track header box
-    static tkhd(meta) {
-        let trackId = meta.id, duration = meta.duration;
-        let width = meta.presentWidth, height = meta.presentHeight;
-        if (meta.type === 'video') {
+    static tkhd(trak) {
+        let trackId = trak.id, duration = trak.duration;
+        let width = trak.presentWidth, height = trak.presentHeight;
+        if (trak.type === 'video') {
             return MP41.box(MP41.types.tkhd, new Uint8Array([
                 0x00, 0x00, 0x00, 0x0F,  // version(0) + flags
                 0xCE, 0xBA, 0xFD, 0xA8,  // creation_time
@@ -311,7 +312,7 @@ class MP41 {
                 (height) & 0xFF,
                 0x00, 0x00
             ]));
-        } else if (meta.type === 'audio') {
+        } else if (trak.type === 'audio') {
             return MP41.box(MP41.types.tkhd, new Uint8Array([
                 0x00, 0x00, 0x00, 0x0F,  // version(0) + flags
                 0xCE, 0xBA, 0xFD, 0xA8,  // creation_time
@@ -369,14 +370,14 @@ class MP41 {
         ]));
     }
     // Media Box
-    static mdia(meta, mdatDataList) {
-        return MP41.box(MP41.types.mdia, MP41.mdhd(meta), MP41.hdlr(meta), MP41.minf(meta, mdatDataList));
+    static mdia(trak) {
+        return MP41.box(MP41.types.mdia, MP41.mdhd(trak), MP41.hdlr(trak), MP41.minf(trak));
     }
 
     // Media header box
-    static mdhd(meta) {
-        let timescale = meta.frameRate.fps;
-        let duration = meta.duration / meta.timescale * timescale;
+    static mdhd(trak) {
+        let timescale = trak.timescale / trak.refSampleDuration;
+        let duration = trak.sequenceNumber;
         return MP41.box(MP41.types.mdhd, new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
             0xCE, 0xBA, 0xFD, 0xA8,  // creation_time
@@ -406,14 +407,14 @@ class MP41 {
     }
 
     // Media infomation box
-    static minf(meta, mdatDataList) {
+    static minf(trak) {
         let xmhd = null;
-        if (meta.type === 'audio') {
+        if (trak.type === 'audio') {
             xmhd = MP41.box(MP41.types.smhd, MP41.constants.SMHD);
         } else {
             xmhd = MP41.box(MP41.types.vmhd, MP41.constants.VMHD);
         }
-        return MP41.box(MP41.types.minf, xmhd, MP41.dinf(), MP41.stbl(meta, mdatDataList));
+        return MP41.box(MP41.types.minf, xmhd, MP41.dinf(), MP41.stbl(trak));
     }
 
     // Data infomation box
@@ -424,31 +425,32 @@ class MP41 {
     }
 
     // Sample table box
-    static stbl(meta, mdatDataList) {
+    static stbl(trak) {
+        let sampleList = trak.samples;
         let sampleToChunk = [
             {
                 No: 1,
                 num: 0,
                 sampleDelte: 1,
                 chunkNo: 1,
-                duration: mdatDataList[0].duration
+                duration: sampleList[0].duration
             }
         ];
-        let durationList = [mdatDataList[0].duration];
-        let len = mdatDataList.length;
+        let durationList = [sampleList[0].duration];
+        let len = sampleList.length;
         for (let i = 0; i < len; i++) {
             for (let j = 0; j < sampleToChunk.length; j++) {
-                if (mdatDataList[i].duration === sampleToChunk[j].duration) {
+                if (sampleList[i].duration === sampleToChunk[j].duration) {
                     sampleToChunk[j].num ++;
                 } else {
-                    if (durationList.indexOf(mdatDataList[i].duration) < 0) {
-                        durationList.push(mdatDataList[i].duration);
+                    if (durationList.indexOf(sampleList[i].duration) < 0) {
+                        durationList.push(sampleList[i].duration);
                         sampleToChunk.push({
                             No: 2,
                             num: 0,
                             sampleDelte: 1,
                             chunkNo: i + 1,
-                            duration: mdatDataList[i].duration
+                            duration: sampleList[i].duration
                         });
                     }
                 }
@@ -457,16 +459,12 @@ class MP41 {
         }
 
         return MP41.box(MP41.types.stbl,  // type: stbl
-            MP41.stsd(meta, mdatDataList),  // Sample Description Table
+            MP41.stsd(trak, sampleList),  // Sample Description Table
             MP41.stts(sampleToChunk), // Time-To-Sample
-            MP41.stss(mdatDataList),
+            MP41.stss(sampleList),
             MP41.stsc(sampleToChunk), //Sample-To-Chunk
-            MP41.stsz(mdatDataList), // Sample size
-            MP41.stco(sampleToChunk, mdatDataList)// Chunk offset
-            // MP41.box(MP41.types.stts, MP41.constants.STTS),  // Time-To-Sample
-            // MP41.box(MP41.types.stsc, MP41.constants.STSC),  // Sample-To-Chunk
-            // MP41.box(MP41.types.stsz, MP41.constants.STSZ),  // Sample size
-            // MP41.box(MP41.types.stco, MP41.constants.STCO)   // Chunk offset
+            MP41.stsz(sampleList), // Sample size
+            MP41.stco(sampleToChunk, sampleList)// Chunk offset
         ); 
 
     }

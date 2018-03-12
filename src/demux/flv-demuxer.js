@@ -1001,8 +1001,14 @@ class FLVDemuxer {
         meta.avcc = new Uint8Array(dataSize);
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
-        meta.sps = spsArray;
-        meta.pps = ppsArray;
+        let spsFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x67]);  //用来拼接h.264关键帧数据
+        let ppsFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x68]);
+        meta.sps = new Uint8Array(spsLength + 5);
+        meta.sps.set(spsFlag, 0);
+        meta.sps.set(spsArray, 5);
+        meta.pps = new Uint8Array(ppsLength + 5);
+        meta.pps.set(ppsFlag, 0);
+        meta.pps.set(ppsArray, 5);
 
         if (this._isInitialMetadataDispatched()) {
             // flush parsed frames
