@@ -845,14 +845,11 @@ class FLVDemuxer {
         }
         //获取sps、pps数据
         let metabuffer = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        let spsLength = metabuffer[7];
+        let spsArray = new Uint8Array(arrayBuffer, dataOffset + 8, spsLength);
+        let ppsLength = metabuffer[spsLength + 10];
+        let ppsArray = new Uint8Array(arrayBuffer, dataOffset + spsLength + 11, ppsLength);
 
-        let vpsLength = metabuffer[27];
-        let vpsArray = new Uint8Array(arrayBuffer, (dataOffset + 28), vpsLength);
-        let spsLength = metabuffer[28 + vpsLength + 4];
-        let spsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5), spsLength);
-        let ppsLength = metabuffer[28 + vpsLength + 5 + spsLength + 4];
-        let ppsArray = new Uint8Array(arrayBuffer, (dataOffset + 28 + vpsLength + 5 + spsLength + 5), ppsLength);
-        
         let meta = this._videoMetadata;
         let track = this._videoTrack;
         let le = this._littleEndian;
@@ -1001,14 +998,24 @@ class FLVDemuxer {
         meta.avcc = new Uint8Array(dataSize);
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
-        let spsFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x67]);  //用来拼接h.264关键帧数据
-        let ppsFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x68]);
-        meta.sps = new Uint8Array(spsLength + 5);
+        let spsFlag = new Uint8Array([
+                (spsLength >>> 24) & 0xFF,
+                (spsLength >>> 16) & 0xFF,
+                (spsLength >>>  8) & 0xFF,
+                (spsLength) & 0xFF
+            ]),
+            ppsFlag = new Uint8Array([
+                (ppsLength >>> 24) & 0xFF,
+                (ppsLength >>> 16) & 0xFF,
+                (ppsLength >>>  8) & 0xFF,
+                (ppsLength) & 0xFF
+            ]);//用来拼接h.264关键帧数据
+        meta.sps = new Uint8Array(spsLength + 4);
         meta.sps.set(spsFlag, 0);
-        meta.sps.set(spsArray, 5);
-        meta.pps = new Uint8Array(ppsLength + 5);
+        meta.sps.set(spsArray, 4);
+        meta.pps = new Uint8Array(ppsLength + 4);
         meta.pps.set(ppsFlag, 0);
-        meta.pps.set(ppsArray, 5);
+        meta.pps.set(ppsArray, 4);
 
         if (this._isInitialMetadataDispatched()) {
             // flush parsed frames

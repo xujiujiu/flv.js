@@ -246,7 +246,7 @@ class MP4Remuxer {
                     this.trakList[len] = {
                         type: 'video',
                         codec: metaData.codec,
-                        id: this.trakList.length,
+                        id: len + 1,
                         sequenceNumber: 0,
                         samples: [],
                         length: 0,
@@ -293,7 +293,7 @@ class MP4Remuxer {
                 this.trakList[0] = {
                     type: 'video',
                     codec: metaData.codec,
-                    id: this.trakList.length,
+                    id: this.trakList.length + 1,
                     sequenceNumber: 0,
                     samples: [],
                     length: 0,
@@ -886,24 +886,26 @@ class MP4Remuxer {
             };
             mp4Samples.push(singleSample);
             if (this.isStartRecord === true) {
-                let DRFlag = new Uint8Array(5);
+                let DRFlag = new Uint8Array();
+                let isKeyFrameUnit = false;
                 if (singleSample.isKeyframe === true) {
-                    let IDRFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x65]);
-                    let IDRFlagLen = 5, spsMetaLen = this.trakList[this.videoTrakId].sps.byteLength, ppsMetaLen = this.trakList[this.videoTrakId].pps.byteLength;
-                    DRFlag = new Uint8Array(spsMetaLen + ppsMetaLen + IDRFlagLen);
-                    DRFlag.set(this.trakList[this.videoTrakId].sps, 0);
-                    DRFlag.set(this.trakList[this.videoTrakId].pps, spsMetaLen);
-                    DRFlag.set(IDRFlag, spsMetaLen + ppsMetaLen);
-                } else if (singleSample.isKeyframe === false) {
-                    DRFlag = new Uint8Array([0x00, 0x00, 0x00, 0x01, 0x61]);
+
                 }
                 let units = [], len = sample.units.length;
-                this.mdatBytes2Record  += len * DRFlag.byteLength;
                 for (let i = 0; i < len; i ++) {
                     units[i] = Object.assign({}, sample.units[i]);
-                    let unitData = new Uint8Array(units[i].data.byteLength + 5);
+                    if (units[i].data[4] === 0x65) {
+                        isKeyFrameUnit = true;
+                        let spsMetaLen = this.trakList[this.videoTrakId].sps.byteLength, ppsMetaLen = this.trakList[this.videoTrakId].pps.byteLength;
+                        DRFlag = new Uint8Array(spsMetaLen + ppsMetaLen);
+                        DRFlag.set(this.trakList[this.videoTrakId].sps, 0);
+                        DRFlag.set(this.trakList[this.videoTrakId].pps, spsMetaLen);
+                    }
+                    let unitDataLen = units[i].data.byteLength;
+                    let unitData = new Uint8Array(unitDataLen + DRFlag.byteLength);
+                    this.mdatBytes2Record  += DRFlag.byteLength;
                     unitData.set(DRFlag, 0);
-                    unitData.set(units[i].data, 5);
+                    unitData.set(units[i].data, DRFlag.byteLength);
                     units[i].data = new Uint8Array(unitData.byteLength);
                     units[i].data.set(unitData, 0);
                 }
@@ -913,19 +915,19 @@ class MP4Remuxer {
                     cts: cts,
                     units: units,
                     size: sample.length,
-                    isKeyframe: isKeyframe,
+                    isKeyframe: isKeyFrameUnit,
                     duration: this.refSampleDuration,
                     originalDts: originalDts,
                     flags: {
                         isLeading: 0,
-                        dependsOn: isKeyframe ? 2 : 1,
-                        isDependedOn: isKeyframe ? 1 : 0,
+                        dependsOn: isKeyFrameUnit ? 2 : 1,
+                        isDependedOn: isKeyFrameUnit ? 1 : 0,
                         hasRedundancy: 0,
-                        isNonSync: isKeyframe ? 0 : 1
+                        isNonSync: isKeyFrameUnit ? 0 : 1
                     }
                 });
                 this.trakList[this.videoTrakId]['sequenceNumber'] ++;
-                this.videoMetadata2RecordPrame.duration +=  this.trakList[this.videoTrakId].refSampleDuration ;
+                this.videoMetadata2RecordPrame.duration +=  this.trakList[this.videoTrakId].refSampleDuration;
             }
         }
 

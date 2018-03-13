@@ -215,7 +215,7 @@ class MP41 {
         let timescale = meta.timescale;
         let duration = meta.duration;
         let trakLen = trakList.length;
-        let mvhd = MP41.mvhd(timescale, duration, trakLen + 1);
+        let mvhd = MP41.mvhd(timescale, duration, trakList[trakLen -1].id + 1);
         let trakArrayBuffer = new Uint8Array();
         for (let i = 0; i < trakLen; i++) {
             let trak = MP41.trak(trakList[i]);
@@ -271,7 +271,7 @@ class MP41 {
 
     // Track box
     static trak(trak) {
-        return MP41.box(MP41.types.trak, MP41.tkhd(trak),/* MP41.edts(trak),*/ MP41.mdia(trak));
+        return MP41.box(MP41.types.trak, MP41.tkhd(trak), /* MP41.edts(trak),*/ MP41.mdia(trak));
     }
 
     // Track header box
