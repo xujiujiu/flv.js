@@ -41,6 +41,7 @@ class MP4Remuxer {
             duration: 0
         };
         this.trakList = [];
+        this.realTrakList = [];
         this.audioMetadata2RecordPrame = {};
         this.videoTrakId = -1;
         this.audioTrakId = -1;
@@ -104,7 +105,6 @@ class MP4Remuxer {
             duration: 0
         };
         this.trakList = [];
-        this.trakList = [];
         this.videoTrakId = -1;
         this.audioTrakId = -1;
 
@@ -155,6 +155,10 @@ class MP4Remuxer {
 
     startRecord() {
         this.isStartRecord = true;
+        this.trakList[0] = Object.assign({}, this.realTrakList[0]);
+        if (this.realTrakList[1] !== undefined) {
+            this.trakList[1] = Object.assign({}, this.realTrakList[1]);
+        }
         this.videoMetadata2RecordPrame = {
             timescale: 1000,   //flv 默认为1000
             duration: 0
@@ -162,35 +166,30 @@ class MP4Remuxer {
     }
     stopRecord(filename) {
         this.isStartRecord = false;
-        // let latest = this.mediaSamples2Record[this.mediaSamples2Record.length - 1];
-        // let lastDts = latest.dts + latest.duration;
-        // let firstDts = this.mediaSamples2Record[0].dts;
-        // let Len = this.mediaSamples2Record.length;
-        // let duration = 0;
-        // for (let i = 0; i < Len; i ++) {
-        //     duration += this.mediaSamples2Record[i].refSampleDuration;
-        // }
-        // this.trakList = [];
-        // this.videoMetadata2RecordPrame = {};
-        /*
-
-        let track = {
-            type: '',
-            id: 1,
-            sequenceNumber: 0,
-            samples: [],
-            length: 0
-        };
-        track.samples = this.mediaSamples2Record;*/
-
-        /*let moofbox = MP4.moof(track, firstDts);
-        track.samples = [];
-        track.length = 0;*/
-
-        // let metadata2Record = [];
-        // this.videoMetadata2Record.duration = duration;
-        // metadata2Record[0] = this.videoMetadata2Record;
-        // metadata2Record[1] = this.audioMetadata2Record;
+        let samples = this.trakList[0].samples, samplesLen = this.trakList[0].samples.length;
+        this.trakList[0].sequenceNumber = this.trakList[0].samples.length;
+        for (let n = 0; n < samplesLen; n++) {
+            let sample = this.trakList[0].samples[n], units = [],
+                isKeyFrameUnit = sample.isKeyframe,
+                sps = this.trakList[0].sps, pps = this.trakList[0].pps, DRFlag = new Uint8Array(), len = sample.units.length;
+            for (let i = 0; i < len; i ++) {
+                units[i] = Object.assign({}, sample.units[i]);
+                if (isKeyFrameUnit === true) { //判断关键帧
+                    let spsMetaLen = sps.byteLength, ppsMetaLen = pps.byteLength;
+                    DRFlag = new Uint8Array(spsMetaLen + ppsMetaLen);
+                    DRFlag.set(sps, 0);
+                    DRFlag.set(pps, spsMetaLen);
+                    let unitDataLen = units[i].data.byteLength;
+                    let unitData = new Uint8Array(unitDataLen + DRFlag.byteLength);
+                    unitData.set(DRFlag, 0);
+                    unitData.set(units[i].data, DRFlag.byteLength);
+                    units[i].data = new Uint8Array(unitData.byteLength);
+                    units[i].data.set(unitData, 0);
+                    this.mdatBytes2Record  += DRFlag.byteLength;
+                }
+            }
+            sample.units = units;
+        }
         let metaBox = MP41.generateInitSegment(this.videoMetadata2RecordPrame, this.trakList, this.mdatBytes2Record);
         //清除录像数据
         this.mdatBytes2Record = 0;
@@ -200,7 +199,6 @@ class MP4Remuxer {
             timescale: 1000,   //flv 默认为1000
             duration: 0
         };
-        this.trakList = [];
         this.trakList = [];
         this.videoTrakId = -1;
         this.audioTrakId = -1;
@@ -242,16 +240,16 @@ class MP4Remuxer {
                 this.audioMetadata2Record = metaData;
             } else if (type === 'video') {
                 if (!(JSON.stringify(this.videoMetadata2Record.avcc) === JSON.stringify(metaData.avcc))) {  //对比视频参数是否变更
-                    let len = this.trakList.length;
-                    this.trakList[len] = {
+                    this.realTrakList[0] = {
                         type: 'video',
                         codec: metaData.codec,
-                        id: len + 1,
+                        id: 1,
                         sequenceNumber: 0,
                         samples: [],
                         length: 0,
                         avcc: new Uint8Array(),
-                        refSampleDuration: metaData.refSampleDuration,
+                        refSampleDuration: metaData.refSampleDuration,  //默认video的fps为25帧，低于25的默认补帧到25
+                        addSampleNum: 1,
                         duration: 0,
                         codecWidth: metaData.codecWidth,
                         codecHeight: metaData.codecHeight,
@@ -261,20 +259,41 @@ class MP4Remuxer {
                         pps: new Uint8Array(),
                         timescale: metaData.timescale
                     };
-                    this.trakList[len].avcc = new Uint8Array(metaData.avcc.byteLength);
-                    this.trakList[len].avcc.set(metaData.avcc, 0);
-                    this.trakList[len].sps = new Uint8Array(metaData.sps.byteLength);
-                    this.trakList[len].sps.set(metaData.sps, 0);
-                    this.trakList[len].pps = new Uint8Array(metaData.pps.byteLength);
-                    this.trakList[len].pps.set(metaData.pps, 0);
-                    this.videoTrakId = len;
+                    this.realTrakList[0].avcc = new Uint8Array(metaData.avcc.byteLength);
+                    this.realTrakList[0].avcc.set(metaData.avcc, 0);
+                    this.realTrakList[0].sps = new Uint8Array(metaData.sps.byteLength);
+                    this.realTrakList[0].sps.set(metaData.sps, 0);
+                    this.realTrakList[0].pps = new Uint8Array(metaData.pps.byteLength);
+                    this.realTrakList[0].pps.set(metaData.pps, 0);
+                    if (metaData.refSampleDuration >= this.trakList[0].refSampleDuration) {
+                        this.trakList[0].addSampleNum = Math.round(metaData.refSampleDuration / this.trakList[0].refSampleDuration);
+                    } else {
+                        this.trakList[0].addSampleNum = Math.round(this.trakList[0].refSampleDuration / metaData.refSampleDuration);
+                        this.trakList[0].avcc = new Uint8Array(metaData.avcc.byteLength);
+                        this.trakList[0].avcc.set(metaData.avcc, 0);
+                        this.trakList[0].sps = new Uint8Array(metaData.sps.byteLength);
+                        this.trakList[0].sps.set(metaData.sps, 0);
+                        this.trakList[0].pps = new Uint8Array(metaData.pps.byteLength);
+                        this.trakList[0].pps.set(metaData.pps, 0);
+                        this.trakList[0].refSampleDuration = metaData.refSampleDuration;
+                    }
+                    let addSampleNum = this.trakList[0].addSampleNum;
+                    if (addSampleNum > 1) {
+                        let samples = [], samplesLen = this.trakList[0].samples.length;
+                        for (let m = 0; m < samplesLen; m ++) {
+                            let sample = this.trakList[0].samples[m];
+                            for (let k = 0; k < addSampleNum; k++) {
+                                samples.push(sample);
+                            }
+                            let Len = sample.units.length;
+                            for (let l = 0; l < Len; l++) {
+                                this.mdatBytes2Record += sample.units[l].data.byteLength * (addSampleNum - 1);
+                            }
+                        }
+                        this.trakList[0].samples = samples;
+                    }
                     this.videoMetadata2Record = metaData;
                 }
-                //this.refSampleDuration = metaData.refSampleDuration;
-                /*this.spsMeta = new Uint8Array(metaData.sps.byteLength);
-                this.spsMeta.set(metaData.sps, 0);
-                this.ppsMeta = new Uint8Array(metaData.pps.byteLength);
-                this.ppsMeta.set(metaData.pps, 0);*/
             }
         }
         if (type === 'audio') {
@@ -288,17 +307,39 @@ class MP4Remuxer {
                 // 'audio/mp4, codecs="codec"'
                 metabox = MP4.generateInitSegment(metadata);
             }
-        } else if (type === 'video') {
-            if (!(JSON.stringify(this.videoMetadata2Record.avcc) === JSON.stringify(metaData.avcc)) && this.isStartRecord === false) {  //对比视频参数是否变更
-                this.trakList[0] = {
-                    type: 'video',
+            if (!(JSON.stringify(this.audioMetadata2Record.avcc) === JSON.stringify(metaData.avcc)) && this.isStartRecord === false) {  //对比视频参数是否变更
+                this.realTrakList[1] = {
+                    type: 'audio',
                     codec: metaData.codec,
-                    id: this.trakList.length + 1,
+                    id: 2,
                     sequenceNumber: 0,
                     samples: [],
                     length: 0,
                     avcc: new Uint8Array(),
                     refSampleDuration: metaData.refSampleDuration,
+                    duration: 0,
+                    originalCodec: metaData.originalCodec,
+                    codecHeight: metaData.codecHeight,
+                    presentWidth: metaData.presentWidth,
+                    presentHeight: metaData.presentHeight,
+                    timescale: metaData.timescale
+                };
+                this.realTrakList[1].avcc = new Uint8Array(metaData.avcc.byteLength);
+                this.realTrakList[1].avcc.set(metaData.avcc, 0);
+                this.audioMetadata2Record = metaData;
+            }
+        } else if (type === 'video') {
+            if (!(JSON.stringify(this.videoMetadata2Record.avcc) === JSON.stringify(metaData.avcc)) && this.isStartRecord === false) {  //对比视频参数是否变更
+                this.realTrakList[0] = {
+                    type: 'video',
+                    codec: metaData.codec,
+                    id: 1,
+                    sequenceNumber: 0,
+                    samples: [],
+                    length: 0,
+                    avcc: new Uint8Array(),
+                    refSampleDuration: metaData.refSampleDuration,  //默认video的fps为25帧，低于25的默认补帧到25
+                    addSampleNum: 1,
                     duration: 0,
                     codecWidth: metaData.codecWidth,
                     codecHeight: metaData.codecHeight,
@@ -308,13 +349,12 @@ class MP4Remuxer {
                     pps: new Uint8Array(),
                     timescale: metaData.timescale
                 };
-                this.trakList[0].avcc = new Uint8Array(metaData.avcc.byteLength);
-                this.trakList[0].avcc.set(metaData.avcc, 0);
-                this.trakList[0].sps = new Uint8Array(metaData.sps.byteLength);
-                this.trakList[0].sps.set(metaData.sps, 0);
-                this.trakList[0].pps = new Uint8Array(metaData.pps.byteLength);
-                this.trakList[0].pps.set(metaData.pps, 0);
-                this.videoTrakId = 0;
+                this.realTrakList[0].avcc = new Uint8Array(metaData.avcc.byteLength);
+                this.realTrakList[0].avcc.set(metaData.avcc, 0);
+                this.realTrakList[0].sps = new Uint8Array(metaData.sps.byteLength);
+                this.realTrakList[0].sps.set(metaData.sps, 0);
+                this.realTrakList[0].pps = new Uint8Array(metaData.pps.byteLength);
+                this.realTrakList[0].pps.set(metaData.pps, 0);
                 this.videoMetadata2Record = metaData;
             }
             this._videoMeta = metadata;
@@ -322,7 +362,6 @@ class MP4Remuxer {
         } else {
             return;
         }
-
         // dispatch metabox (Initialization Segment)
         if (!this._onInitSegment) {
             throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
@@ -511,6 +550,8 @@ class MP4Remuxer {
         }
 
         let mp4Samples = [];
+        let mp4Samples2Record = [];
+
 
         // Correct dts for each sample, and calculate sample duration. Then output to mp4Samples
         for (let i = 0; i < samples.length; i++) {
@@ -541,6 +582,7 @@ class MP4Remuxer {
 
             let needFillSilentFrames = false;
             let silentFrames = null;
+            let silentFrames2Record = null;
 
             // Silent frame generation, if large timestamp gap detected && config.fixAudioTimestampGap
             if (sampleDuration > refSampleDuration * 1.5 && this._audioMeta.codec !== 'mp3' && this._fillAudioTimestampGap && !Browser.safari) {
@@ -577,7 +619,7 @@ class MP4Remuxer {
                         cts: 0,
                         unit: silentUnit,
                         size: silentUnit.byteLength,
-                        duration: 0,  // wait for next sample
+                        duration: refSampleDuration,  // wait for next sample
                         originalDts: originalDts,
                         flags: {
                             isLeading: 0,
@@ -592,13 +634,13 @@ class MP4Remuxer {
                         for (let i = 0; i < len; i ++) {
                             units[i] = Object.assign({}, silentUnit[i]);
                         }
-                        this.mediaSamples2Record.push({
+                        silentFrames2Record.push({
                             dts: intDts,
                             pts: intDts,
                             cts: 0,
                             unit: units,
                             size: silentUnit.byteLength,
-                            duration: intDts - this.mediaSamples2Record[this.mediaSamples2Record.length - 1],  // wait for next sample
+                            duration: 0,  // wait for next sample
                             originalDts: originalDts,
                             flags: {
                                 isLeading: 0,
@@ -647,11 +689,11 @@ class MP4Remuxer {
                 for (let i = 0; i < len; i ++) {
                     units[i] = Object.assign({}, sample.unit[i]);
                 }
-                this.mediaSamples2Record.push({
+                mp4Samples2Record.push({
                     dts: dts,
                     pts: dts,
                     cts: 0,
-                    unit: units,
+                    units: units,
                     size: sample.unit.byteLength,
                     duration: sampleDuration,
                     originalDts: originalDts,
@@ -664,11 +706,16 @@ class MP4Remuxer {
                 });
             }
             if (needFillSilentFrames) {
+                if (this.isStartRecord === true) {
+                    mp4Samples2Record.push.apply(mp4Samples2Record, silentFrames2Record);
+                }
                 // Silent frames should be inserted after wrong-duration frame
                 mp4Samples.push.apply(mp4Samples, silentFrames);
             }
         }
-
+        if (this.isStartRecord === true) {
+            this.trakList[1]['samples'].concat(mp4Samples2Record);
+        }
         // allocate mdatbox
         if (mpegRawTrack) {
             // allocate for raw mpeg buffer
@@ -773,9 +820,6 @@ class MP4Remuxer {
         let offset = 8;
         let mdatbox = null;
         let mdatBytes = 8 + videoTrack.length;
-        if (this.isStartRecord === true) {
-            this.mdatBytes2Record += videoTrack.length;
-        }
 
 
         let lastSample = null;
@@ -784,9 +828,6 @@ class MP4Remuxer {
         if (samples.length > 1) {
             lastSample = samples.pop();
             mdatBytes -= lastSample.length;
-            if (this.isStartRecord === true) {
-                this.mdatBytes2Record -= lastSample.length;
-            }
         }
 
         // Insert [stashed lastSample in the previous batch] to the front
@@ -795,9 +836,6 @@ class MP4Remuxer {
             this._videoStashedLastSample = null;
             samples.unshift(sample);
             mdatBytes += sample.length;
-            if (this.isStartRecord === true) {
-                this.mdatBytes2Record += sample.length;
-            }
         }
 
         // Stash the lastSample of current batch, waiting for next batch
@@ -888,46 +926,45 @@ class MP4Remuxer {
             if (this.isStartRecord === true) {
                 let DRFlag = new Uint8Array();
                 let isKeyFrameUnit = false;
-                if (singleSample.isKeyframe === true) {
-
-                }
                 let units = [], len = sample.units.length;
                 for (let i = 0; i < len; i ++) {
                     units[i] = Object.assign({}, sample.units[i]);
-                    if (units[i].data[4] === 0x65) {
+                    if (units[i].data[4] === 0x65) { //判断关键帧
                         isKeyFrameUnit = true;
-                        let spsMetaLen = this.trakList[this.videoTrakId].sps.byteLength, ppsMetaLen = this.trakList[this.videoTrakId].pps.byteLength;
-                        DRFlag = new Uint8Array(spsMetaLen + ppsMetaLen);
-                        DRFlag.set(this.trakList[this.videoTrakId].sps, 0);
-                        DRFlag.set(this.trakList[this.videoTrakId].pps, spsMetaLen);
+                        // let spsMetaLen = this.realTrakList[0].sps.byteLength, ppsMetaLen = this.realTrakList[0].pps.byteLength;
+                        // DRFlag = new Uint8Array(spsMetaLen + ppsMetaLen);
+                        // DRFlag.set(this.realTrakList[0].sps, 0);
+                        // DRFlag.set(this.realTrakList[0].pps, spsMetaLen);
                     }
                     let unitDataLen = units[i].data.byteLength;
-                    let unitData = new Uint8Array(unitDataLen + DRFlag.byteLength);
-                    this.mdatBytes2Record  += DRFlag.byteLength;
-                    unitData.set(DRFlag, 0);
-                    unitData.set(units[i].data, DRFlag.byteLength);
+                    let unitData = new Uint8Array(unitDataLen /*+ DRFlag.byteLength*/);
+                    //unitData.set(DRFlag, 0);
+                    unitData.set(units[i].data, 0);
                     units[i].data = new Uint8Array(unitData.byteLength);
                     units[i].data.set(unitData, 0);
+                    this.mdatBytes2Record  += unitData.byteLength * this.trakList[0].addSampleNum;
                 }
-                this.trakList[this.videoTrakId]['samples'].push({
-                    dts: dts,
-                    pts: pts,
-                    cts: cts,
-                    units: units,
-                    size: sample.length,
-                    isKeyframe: isKeyFrameUnit,
-                    duration: this.refSampleDuration,
-                    originalDts: originalDts,
-                    flags: {
-                        isLeading: 0,
-                        dependsOn: isKeyFrameUnit ? 2 : 1,
-                        isDependedOn: isKeyFrameUnit ? 1 : 0,
-                        hasRedundancy: 0,
-                        isNonSync: isKeyFrameUnit ? 0 : 1
-                    }
-                });
-                this.trakList[this.videoTrakId]['sequenceNumber'] ++;
-                this.videoMetadata2RecordPrame.duration +=  this.trakList[this.videoTrakId].refSampleDuration;
+                for (let n = 0; n < this.trakList[0].addSampleNum; n ++) {
+                    this.trakList[0].samples.push({
+                        dts: dts,
+                        pts: pts,
+                        cts: cts,
+                        units: units,
+                        size: sample.length,
+                        isKeyframe: isKeyFrameUnit,
+                        duration: 0,
+                        originalDts: originalDts,
+                        flags: {
+                            isLeading: 0,
+                            dependsOn: isKeyFrameUnit ? 2 : 1,
+                            isDependedOn: isKeyFrameUnit ? 1 : 0,
+                            hasRedundancy: 0,
+                            isNonSync: isKeyFrameUnit ? 0 : 1
+                        }
+                    });
+                    this.trakList[0]['sequenceNumber'] ++;
+                    this.videoMetadata2RecordPrame.duration +=  this.trakList[0].refSampleDuration;
+                }
             }
         }
 

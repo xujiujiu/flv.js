@@ -155,7 +155,7 @@ class MP41 {
 
         let ftyp = MP41.box(MP41.types.ftyp, MP41.constants.FTYP);
         let free = MP41.box(MP41.types.free);
-        // allocate mdatbox
+        // allocate mdatbox init fps = 25
         let offset = 8;
         let mdatbox = new Uint8Array();
         if (mdatBytes  + offset >= Math.pow(2, 32) - 1) {  //large size
@@ -215,7 +215,7 @@ class MP41 {
         let timescale = meta.timescale;
         let duration = meta.duration;
         let trakLen = trakList.length;
-        let mvhd = MP41.mvhd(timescale, duration, trakList[trakLen -1].id + 1);
+        let mvhd = MP41.mvhd(timescale, duration);
         let trakArrayBuffer = new Uint8Array();
         for (let i = 0; i < trakLen; i++) {
             let trak = MP41.trak(trakList[i]);
@@ -230,7 +230,7 @@ class MP41 {
     }
 
     // Movie header box
-    static mvhd(timescale, duration, trackId) {
+    static mvhd(timescale, duration) {
         return MP41.box(MP41.types.mvhd, new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
             0xCE, 0xBA, 0xFD, 0xA8,  // creation_time
@@ -262,16 +262,13 @@ class MP41 {
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,  // ----end pre_defined 6 * 4 bytes----
-            (trackId >>> 24) & 0xFF,   // next_track_ID: 4 bytes  3
-            (trackId >>> 16) & 0xFF,
-            (trackId >>>  8) & 0xFF,
-            (trackId) & 0xFF
+            0x00, 0x00, 0x00, 0x03  // next_track_ID: 4 bytes  3
         ]));
     }
 
     // Track box
     static trak(trak) {
-        return MP41.box(MP41.types.trak, MP41.tkhd(trak), /* MP41.edts(trak),*/ MP41.mdia(trak));
+        return MP41.box(MP41.types.trak, MP41.tkhd(trak), /*MP41.edts(trak, i), */MP41.mdia(trak));
     }
 
     // Track header box
@@ -346,22 +343,30 @@ class MP41 {
 
     }
 
-    static edts(meta) {
-        return MP41.box(MP41.types.edts, MP41.elst(meta));
+    static edts(meta, i) {
+        return MP41.box(MP41.types.edts, MP41.elst(meta, i));
     }
-    static elst(meta) {
-        let duration = meta.duration;
-        let sampleDuration = meta.refSampleDuration;
+    static elst(meta, i) {
+        let videoList = [], videoDelayDuration = 0;
+        for (let j = 0; j < i; j++) {
+            if (meta[j].type === 'video') {
+                videoDelayDuration += meta[j].duration;
+            }
+        }
+        let duration = meta[i].duration;
+        if (videoDelayDuration === 0) {
+            videoDelayDuration = meta[i].refSampleDuration;
+        }
         return MP41.box(MP41.types.elst, new Uint8Array([
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02,
-            (sampleDuration >>> 24) & 0xFF,   // SampleDuration: 4 bytes
-            (sampleDuration >>> 16) & 0xFF,
-            (sampleDuration >>>  8) & 0xFF,
-            (sampleDuration) & 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,
-            0x00, 0x01, 0x00, 0x00,
-            (duration >>> 24) & 0xFF,   // duration: 4 bytes
+            (videoDelayDuration >>> 24) & 0xFF,   // SampleDuration: 4 bytes
+            (videoDelayDuration >>> 16) & 0xFF,
+            (videoDelayDuration >>>  8) & 0xFF,
+            (videoDelayDuration) & 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, //media_time
+            0x00, 0x01, 0x00, 0x00,  //  media_rate(2byte) + Media rate fraction(3byte)
+            (duration >>> 24) & 0xFF,   // Duration: 4 bytes
             (duration >>> 16) & 0xFF,
             (duration >>>  8) & 0xFF,
             (duration) & 0xFF,
@@ -377,7 +382,7 @@ class MP41 {
     // Media header box
     static mdhd(trak) {
         let timescale = trak.timescale / trak.refSampleDuration;
-        let duration = trak.sequenceNumber;
+        let duration = timescale * trak.duration / trak.timescale;
         return MP41.box(MP41.types.mdhd, new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
             0xCE, 0xBA, 0xFD, 0xA8,  // creation_time

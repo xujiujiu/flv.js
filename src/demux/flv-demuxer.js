@@ -847,7 +847,7 @@ class FLVDemuxer {
         let metabuffer = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         let spsLength = metabuffer[7];
         let spsArray = new Uint8Array(arrayBuffer, dataOffset + 8, spsLength);
-        let ppsLength = metabuffer[spsLength + 10];
+        let ppsLength = metabuffer[spsLength + 10]; //Num picture parameter sets 占一个字节
         let ppsArray = new Uint8Array(arrayBuffer, dataOffset + spsLength + 11, ppsLength);
 
         let meta = this._videoMetadata;
