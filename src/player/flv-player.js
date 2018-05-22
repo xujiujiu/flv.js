@@ -274,19 +274,22 @@ class FlvPlayer {
             this._transmuxer = null;
         }
     }
-    startRecord() {
-        this._transmuxer._onStartRecord();
+    startRecord(fileName) {
+        this._transmuxer._onStartRecord(fileName);
         this._msectl._isRecordVideo = true;
     }
-    stopRecord(fileName) {
-        this._transmuxer._onStopRecord(fileName);
+    stopRecord() {
+        this._transmuxer._onStopRecord();
     }
 
     _finishRecord(recordMate) {
         let blob = new Blob([recordMate.recordBuffer], {'type': 'application/octet-stream'});
+        this._downLoadFile(recordMate.filename, blob);
+    }
+    _downLoadFile(fileName, blob) {
         let url = window.URL.createObjectURL(blob);
         let aLink = window.document.createElement('a');
-        aLink.download = recordMate.filename;
+        aLink.download = fileName;
         aLink.href = url;
         //创建内置事件并触发
         let evt = window.document.createEvent('MouseEvents');

@@ -50,6 +50,7 @@ let TransmuxingWorker = function (self) {
                 controller.on(TransmuxingEvents.IO_ERROR, onIOError.bind(this));
                 controller.on(TransmuxingEvents.DEMUX_ERROR, onDemuxError.bind(this));
                 controller.on(TransmuxingEvents.INIT_SEGMENT, onInitSegment.bind(this));
+                controller.on(TransmuxingEvents.RECORD_FINISH, RecordFinish.bind(this));
                 controller.on(TransmuxingEvents.MEDIA_SEGMENT, onMediaSegment.bind(this));
                 controller.on(TransmuxingEvents.LOADING_COMPLETE, onLoadingComplete.bind(this));
                 controller.on(TransmuxingEvents.RECOVERED_EARLY_EOF, onRecoveredEarlyEof.bind(this));
@@ -90,6 +91,12 @@ let TransmuxingWorker = function (self) {
                 }
                 break;
             }
+            case 'start_record':
+                controller._startRecord(e.data.param);
+                break;
+            case 'stop_record':
+                controller._stopRecord();
+                break;
         }
     });
 
@@ -102,6 +109,15 @@ let TransmuxingWorker = function (self) {
             }
         };
         self.postMessage(obj, [initSegment.data]);  // data: ArrayBuffer
+    }
+    function RecordFinish(initSegment) {
+        let obj = {
+            msg: TransmuxingEvents.RECORD_FINISH,
+            data: {
+                data: initSegment
+            }
+        };
+        self.postMessage(obj);  // data: ArrayBuffer
     }
 
     function onMediaSegment(type, mediaSegment) {

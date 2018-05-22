@@ -22,6 +22,7 @@ import DemuxErrors from '../demux/demux-errors.js';
 export const ErrorTypes = {
     NETWORK_ERROR: 'NetworkError',
     MEDIA_ERROR: 'MediaError',
+    REDUX_ERROR: 'ReduxError',
     OTHER_ERROR: 'OtherError'
 };
 

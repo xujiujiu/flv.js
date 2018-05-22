@@ -19,6 +19,8 @@
 const TransmuxingEvents = {
     IO_ERROR: 'io_error',
     DEMUX_ERROR: 'demux_error',
+    REMUX_ERROR: 'remux_error',
+    RECORD_FINISH: 'finish_record',
     INIT_SEGMENT: 'init_segment',
     MEDIA_SEGMENT: 'media_segment',
     LOADING_COMPLETE: 'loading_complete',

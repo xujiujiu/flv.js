@@ -218,7 +218,7 @@ class TransmuxingController {
 
         this._enableStatisticsReporter();
     }
-//å½“å‰å¸§
+//µ±Ç°Ö¡
     _searchSegmentIndexContains(milliseconds) {
         let segments = this._mediaDataSource.segments;
         let idx = segments.length - 1;
@@ -248,6 +248,8 @@ class TransmuxingController {
 
             if (!this._remuxer) {
                 this._remuxer = new MP4Remuxer(this._config);
+                this._remuxer.on(TransmuxingEvents.REMUX_ERROR, this._onRemuxError.bind(this));
+                this._remuxer.on(TransmuxingEvents.RECORD_FINISH, this._onRecordFinish.bind(this));
             }
 
             let mds = this._mediaDataSource;
@@ -270,7 +272,7 @@ class TransmuxingController {
                          .bindDataSource(this._ioctl
             ));
             this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
-            //éŸ³è§†é¢‘è§£ç 
+            //ÒôÊÓÆµ½âÂë
             this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
 
             consumed = this._demuxer.parseChunks(data, byteStart);
@@ -422,13 +424,23 @@ class TransmuxingController {
 
         this._emitter.emit(TransmuxingEvents.STATISTICS_INFO, info);
     }
-    _startRecord() {
-        this._remuxer.startRecord();
+    _startRecord(fileName) {
+        this._remuxer.startRecord(fileName);
     }
-    _stopRecord(filename) {
-        return this._remuxer.stopRecord(filename);
+    _stopRecord() {
+        this._remuxer.stopRecord();
     }
 
+    _onRemuxError(result) {
+        Promise.resolve().then(() => {
+            this._emitter.emit(TransmuxingEvents.REMUX_ERROR, result);
+        });
+    }
+    _onRecordFinish(data) {
+        Promise.resolve().then(() => {
+            this._emitter.emit(TransmuxingEvents.RECORD_FINISH, data);
+        });
+    }
 }
 
 export default TransmuxingController;

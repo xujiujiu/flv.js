@@ -29,6 +29,7 @@ class Transmuxer {
     constructor(mediaDataSource, config) {
         this.TAG = 'Transmuxer';
         this._emitter = new EventEmitter();
+        this.enableWorker = config.enableWorker;
 
         if (config.enableWorker && typeof (Worker) !== 'undefined') {
             try {
@@ -55,6 +56,8 @@ class Transmuxer {
             let ctl = this._controller;
             ctl.on(TransmuxingEvents.IO_ERROR, this._onIOError.bind(this));
             ctl.on(TransmuxingEvents.DEMUX_ERROR, this._onDemuxError.bind(this));
+            ctl.on(TransmuxingEvents.REMUX_ERROR, this._onRemuxError.bind(this));
+            ctl.on(TransmuxingEvents.RECORD_FINISH, this._onRecordFinish.bind(this));
             ctl.on(TransmuxingEvents.INIT_SEGMENT, this._onInitSegment.bind(this));
             ctl.on(TransmuxingEvents.MEDIA_SEGMENT, this._onMediaSegment.bind(this));
             ctl.on(TransmuxingEvents.LOADING_COMPLETE, this._onLoadingComplete.bind(this));
@@ -180,6 +183,16 @@ class Transmuxer {
             this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
         });
     }
+    _onRemuxError(result) {
+        Promise.resolve().then(() => {
+            this._emitter.emit(TransmuxingEvents.REMUX_ERROR, result);
+        });
+    }
+    _onRecordFinish(data) {
+        Promise.resolve().then(() => {
+            this._emitter.emit(TransmuxingEvents.RECORD_FINISH, data);
+        });
+    }
 
     _onRecommendSeekpoint(milliseconds) {
         Promise.resolve().then(() => {
@@ -209,6 +222,9 @@ class Transmuxer {
             case TransmuxingEvents.MEDIA_SEGMENT:
                 this._emitter.emit(message.msg, data.type, data.data);
                 break;
+            case TransmuxingEvents.RECORD_FINISH:
+                this._emitter.emit(message.msg, data.data);
+                break;
             case TransmuxingEvents.LOADING_COMPLETE:
             case TransmuxingEvents.RECOVERED_EARLY_EOF:
                 this._emitter.emit(message.msg);
@@ -234,13 +250,28 @@ class Transmuxer {
                 break;
         }
     }
-    _onStartRecord() {
-        this._controller._startRecord();
+    _onStartRecord(fileName) {
+        if (this.enableWorker && typeof (Worker) !== 'undefined') {
+            if (this._worker) {
+                this._worker.postMessage({cmd: 'start_record', param: fileName});
+            }
+        } else {
+            if (this._controller) {
+        this._controller._startRecord(fileName);
+            }
+        }
     }
 
-    _onStopRecord(fileName) {
-        let recordBuffer = this._controller._stopRecord(fileName);
-        this._emitter.emit('finishRecord', recordBuffer);
+    _onStopRecord() {
+        if (this.enableWorker && typeof (Worker) !== 'undefined') {
+            if (this._worker) {
+                this._worker.postMessage({cmd: 'stop_record'});
+            }
+        } else {
+            if (this._controller) {
+                this._controller._stopRecord();
+            }
+        }
     }
 
 }
